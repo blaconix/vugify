@@ -104,7 +104,6 @@ export default {
 
         this.pug += this.convertElement(e, d + 1)
       })
-      console.log(depths)
     }
   }
 }
