@@ -2,7 +2,7 @@
 q-page(:style-fn='fullHeight')
   q-splitter.fit(v-model='splitter', separator-class='bg-primary', separator-style='width: 3px')
     template(v-slot:before)
-      prism-editor(v-model='html', @change='walk(doc.body)', language='html')
+      prism-editor(v-model='html', @change='walkDOM(doc.body)', language='html')
     template(v-slot:after)
       prism-editor(v-model='pug', language='pug')
 </template>
@@ -60,7 +60,7 @@ export default {
     }
   },
   mounted () {
-    this.walk(this.doc.body)
+    this.walkDOM(this.doc.body)
   },
   methods: {
     fullHeight (offset) {
@@ -77,50 +77,34 @@ export default {
       }
 
       newHtml = newHtml + split[split.length - 1]
-      return newHtml.replace(/template/g, 'template1')
+      return newHtml.replace(/template/g, 'tmpl')
     },
 
     convertElement (node, depth) {
-      if (node.nodeType === 3 && node.textContent.trim().length) {
-        return ' ' + (node.textContent.trim())
-      }
-
-      if (node.nodeType !== 1) return
-      if (depth === 0 && node.localName === 'template1') return
-
       const classList = node.className.split(' ').map(className => className && '.' + className).join('')
       const id = node.id ? '#' + node.id : ''
       const attributes = Array.from(node.attributes)
         .filter(attribute => attribute.localName !== 'id' && attribute.localName !== 'class')
         .map(attribute => attribute.localName + (attribute.nodeValue && `='${attribute.nodeValue.replace(/'/g, '`')}'`))
         .join(', ')
-
-      return (`${' '.repeat(depth * 2)}` + (node.localName !== 'div' ? node.localName !== 'template1' ? node.localName : 'template' : '') + id + classList + `${attributes && `(${attributes})`}`)
+      const name = (node.localName !== 'div' ? node.localName !== 'tmpl' ? node.localName : 'template' : '')
+      const text = [].reduce.call(node.childNodes, (a, b) => { return a + (b.nodeType === 3 ? b.textContent : '') }, '').trim()
+      return ' '.repeat(depth * 2) + name + id + classList + (attributes && `(${attributes})`) + (text && ' ' + text) + '\n'
     },
 
-    walk (node) {
+    walkDOM (doc) {
       this.pug = ''
-      let depth = 0
-      const treeWalker = document.createTreeWalker(node, NodeFilter.SHOW_ALL)
+      const el = doc.querySelectorAll('*')
+      const depths = new Map()
+      depths.set(doc, -1)
+      el.forEach((e) => {
+        const p = e.parentNode
+        const d = depths.get(p)
+        depths.set(e, d + 1)
 
-      while (treeWalker.nextNode()) {
-        const currentNode = treeWalker.currentNode
-
-        const element = this.convertElement(currentNode, depth)
-        if (element) {
-          if (currentNode.nodeType === 1 && this.pug) {
-            this.pug += '\n'
-          }
-
-          this.pug += element
-
-          if (currentNode.hasChildNodes()) {
-            depth++
-          } else if (!currentNode.nextSibling) {
-            depth--
-          }
-        }
-      }
+        this.pug += this.convertElement(e, d + 1)
+      })
+      console.log(depths)
     }
   }
 }
